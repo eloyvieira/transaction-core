@@ -8,7 +8,7 @@ Transaction core
 cargo build
 
 # Run
-cargo run -- transactions.csv > accounts.csv
+cargo run -- samples/transactions.csv > accounts.csv
 
 # Check
 cargo check

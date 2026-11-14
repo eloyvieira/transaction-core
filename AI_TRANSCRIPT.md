@@ -42,6 +42,26 @@ Keep each operation small, focused and independently testable.
 
 ### Session 2 — Data Modeling
 
+**User (Prompt):**
+
+src/account.rs create Account struct: include client ID, available balance, held balance and locked status.
+
+**Assistant (Response — Claude):**
+
+I added the Account struct in src/account.rs. cargo check passes.
+
+- Fields: client: ClientId (a u16), available: Amount, held: Amount and locked: bool.
+- Account::new(client) creates an account with zero balances that isn't locked.
+- total() returns available + held. I calculate it instead of storing it, so it always matches the other two balances.
+
+Decision for you: amounts are an i64 in ten-thousandths (Amount), which gives exact 4-decimal arithmetic without floating-point rounding errors. The downside is that the CSV step will need to convert text like 1.5 into this format and back out to text for output. The other option is the rust_decimal crate. That's a new dependency, but it makes reading and writing amounts simpler. Since Amount is a single type alias, switching later only means changing that one line.
+
+**User (Follow-up Prompt):**
+
+Let's keep `i64` with a scale of 10,000 to avoid unnecessary dependencies. We'll handle decimal parsing and formatting during the CSV implementation phase. For now, let's focus on data modeling.
+
+**Decision:** Use `i64` for exact four-decimal monetary representation without introducing additional dependencies.
+
 ### Session 3 — CSV Processing
 
 ### Session 4 — Core Implementation
