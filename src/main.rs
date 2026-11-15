@@ -14,6 +14,7 @@ struct CsvRow {
     transaction_type: String,
     client: ClientId,
     tx: TransactionId,
+    #[serde(default)]
     amount: Option<String>,
 }
 

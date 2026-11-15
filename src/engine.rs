@@ -111,6 +111,9 @@ impl Engine {
 
     fn withdrawal(&mut self, transaction: &Transaction) -> Result<(), EngineError> {
         let amount = transaction.amount.ok_or(EngineError::MissingAmount)?;
+        if amount <= 0 {
+            return Err(EngineError::InvalidAmount);
+        }
         let account = self
             .accounts
             .get_mut(&transaction.client)
@@ -129,8 +132,18 @@ impl Engine {
             return Err(EngineError::AlreadyDisputed);
         }
 
-        account.available -= deposit.amount;
-        account.held += deposit.amount;
+        let available = account
+            .available
+            .checked_sub(deposit.amount)
+            .ok_or(EngineError::Overflow)?;
+
+        let held = account
+            .held
+            .checked_add(deposit.amount)
+            .ok_or(EngineError::Overflow)?;
+
+        account.available = available;
+        account.held = held;
         deposit.disputed = true;
         Ok(())
     }
@@ -141,8 +154,18 @@ impl Engine {
             return Err(EngineError::NotDisputed);
         }
 
-        account.held -= deposit.amount;
-        account.available += deposit.amount;
+        let held = account
+            .held
+            .checked_sub(deposit.amount)
+            .ok_or(EngineError::Overflow)?;
+
+        let available = account
+            .available
+            .checked_add(deposit.amount)
+            .ok_or(EngineError::Overflow)?;
+
+        account.held = held;
+        account.available = available;
         deposit.disputed = false;
         Ok(())
     }
