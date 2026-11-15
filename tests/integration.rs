@@ -92,6 +92,20 @@ fn withdrawal_with_insufficient_funds_is_rejected() {
 }
 
 #[test]
+fn duplicate_withdrawal_is_rejected() {
+    let mut engine = Engine::new();
+    engine.process(deposit(1, 1, 30_000)).unwrap();
+    engine.process(withdrawal(1, 2, 10_000)).unwrap();
+
+    assert_eq!(
+        engine.process(withdrawal(1, 2, 10_000)),
+        Err(EngineError::DuplicateTransaction)
+    );
+
+    assert_balances(&engine, 1, 20_000, 0, false);
+}
+
+#[test]
 fn dispute_moves_funds_to_held() {
     let mut engine = Engine::new();
     engine.process(deposit(1, 1, 10_000)).unwrap();

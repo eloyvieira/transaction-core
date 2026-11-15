@@ -159,3 +159,25 @@ fn format_amount(amount: Amount) -> String {
         width = AMOUNT_DECIMALS
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_amount_valid_values() {
+        assert_eq!(parse_amount("1.5"), Ok(15_000));
+        assert_eq!(parse_amount("0.0001"), Ok(1));
+        assert_eq!(parse_amount("1.2345"), Ok(12_345));
+        assert_eq!(parse_amount("100"), Ok(1_000_000));
+    }
+
+    #[test]
+    fn parse_amount_invalid_values() {
+        assert!(parse_amount("1.23456").is_err());
+        assert!(parse_amount("abc").is_err());
+        assert!(parse_amount("-1.0").is_err());
+        assert!(parse_amount("").is_err());
+        assert!(parse_amount("999999999999999999999").is_err());
+    }
+}

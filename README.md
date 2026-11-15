@@ -15,11 +15,12 @@ cargo run -- samples/transactions.csv > accounts.csv
 cargo check
 
 # Format
+cargo fmt --check
 cargo fmt
 
 # Lint
-cargo clippy
 cargo clippy --all-targets -- -D warnings
+cargo clippy
 
 # Test
 cargo test

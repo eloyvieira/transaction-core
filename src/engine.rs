@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use crate::account::{Account, Amount, ClientId};
@@ -51,6 +51,7 @@ struct Deposit {
 pub struct Engine {
     accounts: HashMap<ClientId, Account>,
     deposits: HashMap<TransactionId, Deposit>,
+    withdrawals: HashSet<TransactionId>,
 }
 
 impl Engine {
@@ -114,6 +115,10 @@ impl Engine {
         if amount <= 0 {
             return Err(EngineError::InvalidAmount);
         }
+        if self.withdrawals.contains(&transaction.tx) {
+            return Err(EngineError::DuplicateTransaction);
+        }
+
         let account = self
             .accounts
             .get_mut(&transaction.client)
@@ -121,8 +126,9 @@ impl Engine {
         if account.available < amount {
             return Err(EngineError::InsufficientFunds);
         }
-
         account.available -= amount;
+
+        self.withdrawals.insert(transaction.tx);
         Ok(())
     }
 
