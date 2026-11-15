@@ -175,8 +175,13 @@ impl Engine {
         if !deposit.disputed {
             return Err(EngineError::NotDisputed);
         }
+        
+        let held = account
+            .held
+            .checked_sub(deposit.amount)
+            .ok_or(EngineError::Overflow)?;
 
-        account.held -= deposit.amount;
+        account.held = held;
         account.locked = true;
         self.deposits.remove(&transaction.tx);
         Ok(())
