@@ -132,19 +132,58 @@ src/main.rs: wire engine; print accounts csv to stdout; convert i64 back to 4dec
 
 **Assistant (Response — Claude):**
 
-I implemented all five operations in src/engine.rs. Clippy is clean, and a throwaway test passed, then I deleted it. It covered deposit, a duplicate tx id, withdrawing too much, dispute → resolve → dispute again → chargeback, and rejecting activity on a locked account.
+main.rs now passes each row to the engine and prints the accounts as CSV on stdout, with amounts converted back to 4 decimal places. Errors still go to stderr, and clippy is clean.
 
-The engine keeps two HashMaps: accounts (client → Account) and deposits (tx → client, amount, disputed flag). You call process(transaction), which returns Result<(), EngineError>, and accounts() lists the accounts for output.
+Running it on samples/transactions.csv:
+client,available,held,total,locked
+1,1.5000,0.0000,1.5000,false
+2,2.0000,0.0000,2.0000,false
+The balances match samples/expected_accounts.csv. The difference is formatting: the expected file has 1.5, 0 and 2.0, which aren't consistent with each other, so no single fixed format can match it exactly. If your integration test compares the files as text, it will fail. Comparing parsed numbers would pass.
 
-Rules I chose:
-- Locked accounts: once an account is locked, every later transaction for that client is rejected.
-- Deposit: creates the account if it doesn't exist yet and rejects a tx id that was already used by a deposit. Only deposit ids are tracked, so a withdrawal that reuses a deposit's id isn't caught.
-- Withdrawal: fails if the client has no account or not enough available funds.
-- Dispute, resolve, chargeback:
-  - The referenced deposit must exist and belong to the same client.
-  - A dispute can't be repeated on an already disputed deposit, and resolve or chargeback require a dispute.
-  - A dispute can push available below zero if the money was already withdrawn.
-- Chargeback: removes the held funds, locks the account and forgets the deposit, so it can't be disputed again.
+The engine also reports the rejected rows on stderr:
+- Line 7: client 2's withdrawal of 3.0 is rejected for insufficient funds.
+- Lines 4, 8 and 9 (dispute, resolve, chargeback): these rows have no commas between fields in the sample file, so they're skipped as invalid. That's why client 1 ends with 1.5 available and 0 held, matching the expected file.
 
+What changed in main.rs:
+- Wiring: each valid row goes to engine.process(...). If the engine rejects it, the line number and reason go to stderr and processing continues.
+- Output: write_accounts sorts accounts by client so the output order is always the same, and writes them with csv::Writer. If writing fails, it prints an error and exits with code 1.
+- Amounts: format_amount turns the i64 back into text with exactly 4 decimal places, e.g. 15000 → 1.5000. It also handles negative balances, which a dispute after a withdrawal can produce.
 
 ### Session 5 — Testing
+
+**User (Prompt):**
+
+tests/integration.rs: add tests for deposit, withdrawal, dispute, resolve, chargeback, insufficiente funds, locked accounts and invalid operations; Use Engine, Acctouns and Transaction models; keep tests simple and focused on valid balances.
+
+**Assistant (Response — Claude):**
+
+I added 8 engine tests to tests/integration.rs, and all 8 pass. Clippy has no warnings.
+
+Each test runs transactions through Engine and then checks the client's Account: available, held, total (available + held) and locked. Amounts are in ten-thousandths, so 15_000 means 1.5.
+
+┌─────────────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────┐
+│                      Test                       │                                What it checks                                │
+├─────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────┤
+│ deposit_increases_available                     │ Two deposits add up in available                                             │
+├─────────────────────────────────────────────────┼────────────────────────────────────────────────────┤
+│ withdrawal_decreases_available                  │ A withdrawal subtracts from available                                        │
+├─────────────────────────────────────────────────┼────────────────────────────────────────────────────┤
+│ withdrawal_with_insufficient_funds_is_rejected  │ Withdrawing just over the balance fails with InsufficientFunds; balance      │
+│                                                 │                                                    │
+├─────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────┤
+│ dispute_moves_funds_to_held                     │ from available to held                             │
+├─────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────┤
+│ resolve_releases_held_funds                     │ to available                                       │
+├─────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────┤
+│ chargeback_removes_held_funds_and_locks_account │  the account is locked                             │
+├─────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────┤
+│ locked_account_rejects_all_transactions         │ spute on a locked account all fail with            │
+│                                                 │ AccountLocked                                                                │
+├─────────────────────────────────────────────────┼────────────────────────────────────────────────────┤
+│ invalid_operations_do_not_change_balances       │ Each EngineError case leaves both clients' balances unchanged                │
+└─────────────────────────────────────────────────┴────────────────────────────────────────────────────┘
+
+The invalid-operations cases are a duplicate tx id,  a missing amount, an unknown account, an unknown tx,a dispute on another client's deposit, resolve or chargeback without a dispute, and a second dispute on the same deposit.
+
+The zero and negative amount cases rely on the InvalidAmount check you added to the engine. cargo fmt also removed trailing
+whitespace in src/engine.rs inside chargeback.

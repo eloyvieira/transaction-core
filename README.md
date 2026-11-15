@@ -18,6 +18,7 @@ cargo fmt
 
 # Lint
 cargo clippy
+cargo clippy --all-targets -- -D warnings
 
 # Test
 cargo test

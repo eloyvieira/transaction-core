@@ -175,7 +175,7 @@ impl Engine {
         if !deposit.disputed {
             return Err(EngineError::NotDisputed);
         }
-        
+
         let held = account
             .held
             .checked_sub(deposit.amount)
