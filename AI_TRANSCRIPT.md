@@ -78,6 +78,30 @@ I left out doc comments to match how you trimmed account.rs. The CSV step will n
 
 ### Session 3 — CSV Processing
 
+**User (Prompt):**
+
+src/main.rs: reading csv using csv and serde; read line by line; rows to transaction; handle invalid rows no stopping; print erros stderr; keep stdout for csv output; keep it simple.
+
+**Assistant (Response — Claude):**
+
+src/main.rs now reads the CSV with csv and serde, one row at a time. Bad rows are reported on stderr and skipped, and processing continues. stdout stays empty for now because there's no engine to pass transactions to and nothing to print yet; both spots are marked with TODOs. I added csv and serde (with derive) to Cargo.toml.
+
+I ran it on a test file with bad rows mixed in. The valid rows went through, each bad row printed one error with its line number, and the program exited 0:
+line 3: unknown transaction type 'bogus'
+line 4: missing amount
+line 5: invalid amount '1.23456'
+line 7: invalid row: CSV deserialize error: ... invalid digit found in string
+cargo clippy shows no warnings, and cargo fmt reformatted the file.
+
+How it works:
+- Reading: each row is read into a private CsvRow struct and then converted into a Transaction. Spaces around fields are trimmed, and rows with fewer columns are allowed, since dispute rows often have no amount.
+- Errors: a missing path argument or a file that can't be opened prints to stderr and exits with code 1.
+- Type names: matching ignores case. Any other name is reported as invalid.
+- Amounts: deposits and withdrawals must have one. For dispute, resolve and chargeback I drop any amount given and set it to None.
+- Amount format: parse_amount turns text like 1.5 into the i64 ten-thousandths format. It accepts at most 4 decimal places and rejects signs, other text and values too large for an i64.
+
+Decision for you: I kept TransactionType free of serde, so transaction.rs stays as you left it and the mapping from the type text lives in main.rs. If you'd rather derive Deserialize on the enum with lowercase names, that match block would go away.
+
 ### Session 4 — Core Implementation
 
 ### Session 5 — Testing
