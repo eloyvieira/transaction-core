@@ -62,6 +62,20 @@ Let's keep `i64` with a scale of 10,000 to avoid unnecessary dependencies. We'll
 
 **Decision:** Use `i64` for exact four-decimal monetary representation without introducing additional dependencies.
 
+**User (Prompt):**
+
+src/transaction.rs: add simple data model; transactionId as u32; transactionType enum deposit, withdrawal, dispute, resolve and chargeback; struct transaction_type, client, tx and amount; ClientId and Amount from src/account.rs; Amount optional; keep code simple and maintainable.
+
+**Assistant (Response — Claude):**
+
+I added the transaction data model in src/transaction.rs, and cargo check passes.
+
+- TransactionId is a type alias for u32.
+- TransactionType is an enum with Deposit, Withdrawal, Dispute, Resolve and Chargeback.
+- Transaction has transaction_type, client: ClientId, tx: TransactionId and amount: Option<Amount>. ClientId and Amount come from account.rs.
+
+I left out doc comments to match how you trimmed account.rs. The CSV step will need to map the lowercase type column (e.g. deposit) to these variants.
+
 ### Session 3 — CSV Processing
 
 ### Session 4 — Core Implementation
