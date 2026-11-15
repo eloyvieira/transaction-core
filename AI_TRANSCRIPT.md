@@ -104,4 +104,47 @@ Decision for you: I kept TransactionType free of serde, so transaction.rs stays 
 
 ### Session 4 — Core Implementation
 
+**User (Prompt):**
+
+src/engine.rs: implement deposit, withdrawal, dispute, resolve and chargeback using Account and Transaction models; HashMaps to manage accounts and deposits for disputes; keep the code simple.
+
+**Assistant (Response — Claude):**
+
+I implemented all five operations in src/engine.rs. Clippy is clean, and a throwaway test passed, then I deleted it. It covered deposit, a duplicate tx id, withdrawing too much, dispute → resolve → dispute again → chargeback, and rejecting activity on a locked account.
+
+The engine keeps two HashMaps: accounts (client → Account) and deposits (tx → client, amount, disputed flag). You call process(transaction), which returns Result<(), EngineError>, and accounts() lists the accounts for output.
+
+Rules I chose:
+- Locked accounts: once an account is locked, every later transaction for that client is rejected.
+- Deposit: creates the account if it doesn't exist yet and rejects a tx id that was already used by a deposit. Only deposit ids are tracked, so a withdrawal that reuses a deposit's id isn't caught.
+- Withdrawal: fails if the client has no account or not enough available funds.
+- Dispute, resolve, chargeback:
+  - The referenced deposit must exist and belong to the same client.
+  - A dispute can't be repeated on an already disputed deposit, and resolve or chargeback require a dispute.
+  - A dispute can push available below zero if the money was already withdrawn.
+- Chargeback: removes the held funds, locks the account and forgets the deposit, so it can't be disputed again.
+
+main.rs doesn't use the engine yet; its two TODOs are still there. Connecting it means calling engine.process(tx) and printing errors to stderr, then writing engine.accounts() to stdout as CSV, converting amounts back to 4 decimal places. Should I do that next?
+
+**User (Prompt):**
+
+src/main.rs: wire engine; print accounts csv to stdout; convert i64 back to 4decimal; keep the code simple.
+
+**Assistant (Response — Claude):**
+
+I implemented all five operations in src/engine.rs. Clippy is clean, and a throwaway test passed, then I deleted it. It covered deposit, a duplicate tx id, withdrawing too much, dispute → resolve → dispute again → chargeback, and rejecting activity on a locked account.
+
+The engine keeps two HashMaps: accounts (client → Account) and deposits (tx → client, amount, disputed flag). You call process(transaction), which returns Result<(), EngineError>, and accounts() lists the accounts for output.
+
+Rules I chose:
+- Locked accounts: once an account is locked, every later transaction for that client is rejected.
+- Deposit: creates the account if it doesn't exist yet and rejects a tx id that was already used by a deposit. Only deposit ids are tracked, so a withdrawal that reuses a deposit's id isn't caught.
+- Withdrawal: fails if the client has no account or not enough available funds.
+- Dispute, resolve, chargeback:
+  - The referenced deposit must exist and belong to the same client.
+  - A dispute can't be repeated on an already disputed deposit, and resolve or chargeback require a dispute.
+  - A dispute can push available below zero if the money was already withdrawn.
+- Chargeback: removes the held funds, locks the account and forgets the deposit, so it can't be disputed again.
+
+
 ### Session 5 — Testing

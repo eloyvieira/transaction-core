@@ -1,8 +1,9 @@
-use std::{env, process};
+use std::{env, io, process};
 
-use csv::{ReaderBuilder, Trim};
-use serde::Deserialize;
-use transaction_core::account::{Amount, ClientId};
+use csv::{ReaderBuilder, Trim, Writer};
+use serde::{Deserialize, Serialize};
+use transaction_core::account::{Account, Amount, ClientId};
+use transaction_core::engine::Engine;
 use transaction_core::transaction::{Transaction, TransactionId, TransactionType};
 
 const AMOUNT_DECIMALS: usize = 4;
@@ -14,6 +15,15 @@ struct CsvRow {
     client: ClientId,
     tx: TransactionId,
     amount: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct AccountRow {
+    client: ClientId,
+    available: String,
+    held: String,
+    total: String,
+    locked: bool,
 }
 
 fn main() {
@@ -34,6 +44,8 @@ fn main() {
         }
     };
 
+    let mut engine = Engine::new();
+
     for (index, result) in reader.deserialize::<CsvRow>().enumerate() {
         let line = index + 2;
         let row = match result {
@@ -44,7 +56,7 @@ fn main() {
             }
         };
 
-        let _transaction = match to_transaction(row) {
+        let transaction = match to_transaction(row) {
             Ok(transaction) => transaction,
             Err(err) => {
                 eprintln!("line {line}: {err}");
@@ -52,10 +64,33 @@ fn main() {
             }
         };
 
-        eprintln!("{:#?}", _transaction);
-
+        if let Err(err) = engine.process(transaction) {
+            eprintln!("line {line}: {err}");
+        }
     }
 
+    if let Err(err) = write_accounts(&engine) {
+        eprintln!("error: cannot write output: {err}");
+        process::exit(1);
+    }
+}
+
+fn write_accounts(engine: &Engine) -> Result<(), csv::Error> {
+    let mut accounts: Vec<&Account> = engine.accounts().collect();
+    accounts.sort_by_key(|account| account.client);
+
+    let mut writer = Writer::from_writer(io::stdout().lock());
+    for account in accounts {
+        writer.serialize(AccountRow {
+            client: account.client,
+            available: format_amount(account.available),
+            held: format_amount(account.held),
+            total: format_amount(account.total()),
+            locked: account.locked,
+        })?;
+    }
+    writer.flush()?;
+    Ok(())
 }
 
 fn to_transaction(row: CsvRow) -> Result<Transaction, String> {
@@ -110,4 +145,16 @@ fn parse_amount(raw: &str) -> Result<Amount, String> {
         .checked_mul(10_i64.pow(AMOUNT_DECIMALS as u32))
         .and_then(|scaled| scaled.checked_add(fraction))
         .ok_or_else(invalid)
+}
+
+fn format_amount(amount: Amount) -> String {
+    let scale = 10_u64.pow(AMOUNT_DECIMALS as u32);
+    let sign = if amount < 0 { "-" } else { "" };
+    let abs = amount.unsigned_abs();
+    format!(
+        "{sign}{}.{:0width$}",
+        abs / scale,
+        abs % scale,
+        width = AMOUNT_DECIMALS
+    )
 }
